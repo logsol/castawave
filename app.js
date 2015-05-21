@@ -6,8 +6,7 @@ var Chromecast = require('./chromecast');
 // Get the current window
 var win = gui.Window.get();
 win.focus();
-win.moveTo(30,30);
-win.showDevTools();
+//win.showDevTools();
 
 ///----------------------------
 

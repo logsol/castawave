@@ -13,6 +13,12 @@
     "bootstrap": "3.3.4"
   },
   "window": {
-    "toolbar": true
+    "title": "Castawave",
+    "toolbar": false,
+    "frame": true,
+    "width": 400,
+    "height": 330,
+    "position": "mouse",
+    "resizable": false
   }
 }
