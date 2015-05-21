@@ -1,0 +1,6 @@
+node_modules/
+.DS_Store
+test/
+test-audio/
+test-webcast/
+node-webkit.app/
