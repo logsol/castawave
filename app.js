@@ -6,6 +6,7 @@ var Chromecast = require('./chromecast');
 // Get the current window
 var win = gui.Window.get();
 win.focus();
+
 //win.x = 0;
 //win.showDevTools();
 
@@ -19,11 +20,18 @@ freeport(function(err, port) {
     port: port,
     bitrate: 192,
     samplerate: 44100,
-    name: 'Audio Streamer',
-    url: 'stream.mp3',
+    name: 'Castawave',
+    url: 'castawave.mp3',
   });
 
   $("footer #portinfo").text("Streaming from local port " + port);
+
+  win.on('close', function(){
+    var scope = this;
+    cc.disconnect(false, function(){
+      scope.close(true);
+    })
+  });
 
   cc.onDeviceListUpdate(function(list){
 

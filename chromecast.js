@@ -29,7 +29,11 @@ var Chromecast = function(options) {
 
   browser.start();
 
-  this.webcast = new Webcast(this.options);
+  setTimeout(function(){
+    // start webcasting a few seconds later to avoid load problems
+    self.webcast = new Webcast(self.options);  
+  }, 2000);
+  
   this.player = null;
 }
 
@@ -71,10 +75,8 @@ Chromecast.prototype.connect = function(name, host) {
         return;
       }
 
-      self.setCurrentCS(self.cs.CASTING);
-
       self.player = player;
-
+      self.setCurrentCS(self.cs.CASTING);
       self.displayChangeCallback('starting player');
 
       var media = {
@@ -127,16 +129,16 @@ Chromecast.prototype.connect = function(name, host) {
       // chromecast was reset externally
       if(!payload.hasOwnProperty('applications')) {
         self.disconnect(true);
+        return;
       }
-
-
     }
   });
 }
 
-Chromecast.prototype.disconnect = function(externalDisconnect) {
+Chromecast.prototype.disconnect = function(externalDisconnect, callback) {
 
   if (this.currentCS !== this.cs.CASTING) {
+    callback();
     return;
   }
 
@@ -147,14 +149,15 @@ Chromecast.prototype.disconnect = function(externalDisconnect) {
   if (externalDisconnect) {
     self.client.close();
     this.cleanup();
+    if (callback) callback();
     return;
   }
 
   this.client.stop(self.player, function(arg) {
     self.client.close();
     self.cleanup();
+    if (callback) callback();
   });
-
 }
 
 Chromecast.prototype.cleanup = function() {
