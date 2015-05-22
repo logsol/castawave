@@ -13,7 +13,7 @@ var Chromecast = function(options) {
     CASTING: 3,
     DESTROY: 4
   }
-  this.currentCS = this.cs.IDLE;
+  this.setCurrentCS(this.cs.IDLE);
   this.options = options;
   this.devices = [];
   this.deviceListUpdateCallback = function(l){};
@@ -41,6 +41,11 @@ Chromecast.prototype.onDisplayChange = function(fn) {
 	this.displayChangeCallback = fn;
 };
 
+Chromecast.prototype.setCurrentCS = function(cs) {
+  //console.log(this.currentCS + " to " + cs);
+  this.currentCS = cs;
+}
+
 Chromecast.prototype.connect = function(name, host) {
 
 	var self = this;
@@ -50,7 +55,7 @@ Chromecast.prototype.connect = function(name, host) {
     this.displayChangeCallback('error');
     return;
   }
-  this.currentCS = this.cs.SETUP;
+  this.setCurrentCS(this.cs.SETUP);
   this.displayChangeCallback('connecting');
 
   this.client = new Client();
@@ -66,7 +71,7 @@ Chromecast.prototype.connect = function(name, host) {
         return;
       }
 
-      self.currentCS = self.cs.CASTING;
+      self.setCurrentCS(self.cs.CASTING);
 
       self.player = player;
 
@@ -114,40 +119,49 @@ Chromecast.prototype.connect = function(name, host) {
     self.disconnect();
   });
 
-  this.client.on('message', function(message) {
-    
-    if (message && message.payload) {
-      var payload = JSON.parse(message.payload);
+  this.client.on('status', function(payload) {
 
-      if (payload.type === "CLOSE") {
+    if (self.currentCS === self.cs.CASTING) {
 
-        self && self.disconnect();
+      // getting an update while in casting mode, no application means, 
+      // chromecast was reset externally
+      if(!payload.hasOwnProperty('applications')) {
+        self.disconnect(true);
       }
+
+
     }
   });
 }
 
-Chromecast.prototype.disconnect = function() {
+Chromecast.prototype.disconnect = function(externalDisconnect) {
 
   if (this.currentCS !== this.cs.CASTING) {
     return;
-  } 
+  }
 
   var self = this;
-  this.currentCS = this.cs.DESTROY;
+  this.setCurrentCS(this.cs.DESTROY);
   this.displayChangeCallback('closing');
+
+  if (externalDisconnect) {
+    self.client.close();
+    this.cleanup();
+    return;
+  }
 
   this.client.stop(self.player, function(arg) {
     self.client.close();
     self.cleanup();
   });
+
 }
 
 Chromecast.prototype.cleanup = function() {
   var self = this;
 
   this.displayChangeCallback('connection closed');
-  this.currentCS = this.cs.IDLE;
+  this.setCurrentCS(this.cs.IDLE);
 
   setTimeout(function(){
     self.displayChangeCallback('ready');
