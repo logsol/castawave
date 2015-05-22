@@ -36,3 +36,25 @@ body {
 .page-header {
   margin-top: 20px;
 }
+
+#deviceList li img {
+  margin: -3px 5px 0 0;
+}
+
+.icon {
+  background-repeat: no-repeat;
+  padding-left: 28px !important;
+  background-position: 7px 12px;
+}
+
+.loading {
+  background-image: url("./img/loader.gif");
+}
+
+.casting {
+  background-image: url("./img/casting.png");
+}
+
+.casting:hover {
+  background-image: url("./img/cancel.png");
+}

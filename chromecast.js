@@ -7,94 +7,152 @@ var Chromecast = function(options) {
   var self = this;
   var browser = mdns.createBrowser(mdns.tcp('googlecast'));
 
-  this.deviceFound = false;
+  this.cs = {
+    IDLE: 1,
+    SETUP: 2,
+    CASTING: 3,
+    DESTROY: 4
+  }
+  this.currentCS = this.cs.IDLE;
   this.options = options;
   this.devices = [];
   this.deviceListUpdateCallback = function(l){};
-  this.statusChangeCallback = function(s){};
+  this.displayChangeCallback = function(s){};
 
   browser.on('serviceUp', function(service) {
+
     self.devices.push(service);
     self.deviceListUpdateCallback(self.devices);
+    self.displayChangeCallback('ready');
     browser.stop();
   });
 
   browser.start();
+
+  this.webcast = new Webcast(this.options);
+  this.player = null;
 }
 
 Chromecast.prototype.onDeviceListUpdate = function(fn) {
 	this.deviceListUpdateCallback = fn;
 };
 
-Chromecast.prototype.onStatusChange = function(fn) {
-	this.statusChangeCallback = fn;
+Chromecast.prototype.onDisplayChange = function(fn) {
+	this.displayChangeCallback = fn;
 };
 
 Chromecast.prototype.connect = function(name, host) {
 
 	var self = this;
 
-    // don't try and start more than one connection (will fail if multiple devices are found)
-    if (this.deviceFound) {
-      return;
-    }
-    this.deviceFound = true;
+  if (this.currentCS !== this.cs.IDLE) {
+    console.error('already connected..');
+    this.displayChangeCallback('error');
+    return;
+  }
+  this.currentCS = this.cs.SETUP;
+  this.displayChangeCallback('connecting');
 
-    console.log("Connecting to device '%s'", name);
-    var client = new Client();
+  this.client = new Client();
 
-    client.connect(host, function() {
-      console.log('connected, launching app ...');
+  this.client.connect(host, function() {
 
-      self.statusChangeCallback('connected', name);
+    self.displayChangeCallback('setting up');
 
-      var webcast = new Webcast(self.options);
+    self.client.launch(DefaultMediaReceiver, function(err, player) {
+      if (err) {
+        console.error('Error: %s', err.message);
+        self.client.close();
+        return;
+      }
 
-      client.launch(DefaultMediaReceiver, function(err, player) {
+      self.currentCS = self.cs.CASTING;
+
+      self.player = player;
+
+      self.displayChangeCallback('starting player');
+
+      var media = {
+
+        contentId: 'http://' + self.webcast.ip + ':' + self.options.port + '/' + self.options.url,
+        contentType: 'audio/mpeg3',
+        streamType: 'LIVE', // or LIVE
+
+        // Title and cover displayed while buffering
+        metadata: {
+          type: 0,
+          metadataType: 0,
+          title: self.options.name 
+        }        
+      };
+
+      player.on('status', function(status) {
+        self.displayChangeCallback(status.playerState);
+      });
+
+      //console.log('app "%s" launched, loading media %s ...', player.session.displayName, media.contentId);
+
+      player.load(media, { autoplay: true }, function(err, status) {
         if (err) {
           console.error('Error: %s', err.message);
-          client.close();
+          self.client.close();
           return;
         }
-        var media = {
-
-          contentId: 'http://' + webcast.ip + ':' + self.options.port + '/' + self.options.url,
-          contentType: 'audio/mpeg3',
-          streamType: 'LIVE', // or LIVE
-
-          // Title and cover displayed while buffering
-          metadata: {
-            type: 0,
-            metadataType: 0,
-            title: self.options.name 
-          }        
-        };
-
-        player.on('status', function(status) {
-          console.log('status broadcast playerState=%s', status.playerState);
-        });
-
-        console.log('app "%s" launched, loading media %s ...', player.session.displayName, media.contentId);
-
-        player.load(media, { autoplay: true }, function(err, status) {
-    
-           if (err) {
-            console.error('Error: %s', err.message);
-            client.close();
-            return;
-          }
-          console.log('media loaded playerState=%s', status.playerState);
-        });
-
+        //console.log('media loaded playerState=%s', status.playerState);
       });
-    });
 
-    client.on('error', function(err) {
-      console.error('Error: %s', err.message);
-      client.close();
     });
+  });
 
-  }
+  this.client.on('error', function(err) {
+    console.error('Error: %s', err.message);
+    self.client.close();
+    self.displayChangeCallback('error');
+  });
+
+  this.client.on('close', function() {
+    self.disconnect();
+  });
+
+  this.client.on('message', function(message) {
+    
+    if (message && message.payload) {
+      var payload = JSON.parse(message.payload);
+
+      if (payload.type === "CLOSE") {
+
+        self && self.disconnect();
+      }
+    }
+  });
+}
+
+Chromecast.prototype.disconnect = function() {
+
+  if (this.currentCS !== this.cs.CASTING) {
+    return;
+  } 
+
+  var self = this;
+  this.currentCS = this.cs.DESTROY;
+  this.displayChangeCallback('closing');
+
+  this.client.stop(self.player, function(arg) {
+    self.client.close();
+    self.cleanup();
+  });
+}
+
+Chromecast.prototype.cleanup = function() {
+  var self = this;
+
+  this.displayChangeCallback('connection closed');
+  this.currentCS = this.cs.IDLE;
+
+  setTimeout(function(){
+    self.displayChangeCallback('ready');
+  }, 1000);
+};
 
 
 module.exports = Chromecast;
