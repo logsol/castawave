@@ -2,10 +2,13 @@ var $ = require('jquery');
 var freeport = require('freeport');
 var gui = require('nw.gui');
 var Chromecast = require('./chromecast');
+var audio = require('webcast-osx-audio/node_modules/osx-audio');
 
 // Get the current window
 var win = gui.Window.get();
 win.focus();
+
+var cc;
 
 //win.x = 0;
 //win.showDevTools();
@@ -95,3 +98,39 @@ freeport(function(err, port) {
     }
   });
 });
+
+// Meter
+var b_canvas = document.getElementById("b");
+var b_context = b_canvas.getContext("2d");
+var height = b_canvas.height;
+var width = b_canvas.width;
+var border = 0;
+
+var audioCtx = new webkitAudioContext();
+var source = audioCtx.createBufferSource();
+var analyser = audioCtx.createAnalyser();
+var myArrayBuffer = audioCtx.createBuffer(2, 44100 * 3, 44100);
+
+source.connect(analyser);
+
+var input = new audio.Input(); // Is a singleton, so webcast will use same instance.
+var meter = 0;
+
+input.on('data', function(buffer){
+  var value = Math.abs(buffer.readInt16LE(0)) / 10000;
+  if (value > meter) {
+    meter = value;
+  }
+});
+
+function step() {
+  meter -= .005;
+  b_context.fillStyle = "#4191B0";
+  b_context.clearRect(0,0,1000,1000)
+  b_context.fillRect(border, border, meter * (width - border*2), height - border*2);
+
+  requestAnimationFrame(step);
+};
+requestAnimationFrame(step);
+
+

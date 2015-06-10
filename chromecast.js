@@ -16,8 +16,10 @@ var Chromecast = function(options) {
   this.setCurrentCS(this.cs.IDLE);
   this.options = options;
   this.devices = [];
+  
   this.deviceListUpdateCallback = function(l){};
   this.displayChangeCallback = function(s){};
+  this.meterUpdateCallback = function(s){};
 
   browser.on('serviceUp', function(service) {
 
